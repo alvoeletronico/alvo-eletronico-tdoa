@@ -1,0 +1,572 @@
+Activity_main.xml
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.example.finaltarget1.MainActivity">
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Ligar"
+        android:onClick="botaoLigarOnClick"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:id="@+id/botaoLigar"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Desligar"
+        android:onClick="botaoDesligarOnClick"
+        android:layout_below="@+id/botaoLigar"
+        android:layout_centerHorizontal="true"
+        android:id="@+id/botaoDesligar"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Reset"
+        android:onClick="botaoResetOnClick"
+        android:layout_below="@+id/botaoDesligar"
+        android:layout_centerHorizontal="true"
+        android:id="@+id/botaoReset"/>
+
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/xResultado"
+        android:layout_below="@+id/botaoReset"
+        android:layout_centerHorizontal="true"/>
+
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/yResultado"
+        android:layout_below="@+id/xResultado"
+        android:layout_centerHorizontal="true"/>
+
+
+    <com.example.finaltarget1.MyCanvas
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@+id/yResultado"
+        android:layout_centerHorizontal="true"
+        android:background="@drawable/alvo"
+        android:id="@+id/canvas"/>
+
+</RelativeLayout>
+
+MainActivity.java
+package com.example.finaltarget1;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+
+import android.content.Context;
+import android.os.Bundle;
+import android.os.CountDownTimer;
+import android.util.Log;
+import android.view.View;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+
+import java.util.Vector;
+
+import static java.lang.StrictMath.hypot;
+
+public class MainActivity extends AppCompatActivity {
+
+    double t0, t1, t2, t3;
+    String flag;
+    boolean keepGoing;
+
+    private MyCanvas myCanvas;
+
+    public boolean estadoBotao;
+
+    Vector<Float> xNew = new Vector<Float>();
+
+    Vector<Float> yNew = new Vector<Float>();
+
+    FirebaseDatabase database = FirebaseDatabase.getInstance();
+    DatabaseReference myRef = database.getReference();
+
+    final DatabaseReference tempo0 = myRef.child("t0");
+    final DatabaseReference tempo1 = myRef.child("t1");
+    final DatabaseReference tempo2 = myRef.child("t2");
+    final DatabaseReference tempo3 = myRef.child("t3");
+    final DatabaseReference estado = myRef.child("estado");
+    final DatabaseReference flag_ = myRef.child("flag");
+
+    Button botaoLigar;
+    Button botaoDesligar;
+    Button botaoReset;
+
+    public void setResultados(float xResultado, float yResultado){
+        xNew.add(xResultado);
+        yNew.add(yResultado);
+        myCanvas.setResults(xNew,yNew);
+    }
+
+    public void getTempos(){
+        tempo0.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                String value = dataSnapshot.getValue(String.class);
+                Log.d("file","Value is: " + value);
+                t0 = Double.parseDouble(value);
+            }
+
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+                Log.w("file","Failed to read value.", databaseError.toException());
+            }
+        });
+
+        tempo1.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                String value = dataSnapshot.getValue(String.class);
+                Log.d("file","Value is: " + value);
+                t1 = Double.parseDouble(value);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+                Log.w("file","Failed to read value.", databaseError.toException());
+            }
+        });
+
+        tempo2.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                String value = dataSnapshot.getValue(String.class);
+                Log.d("file","Value is: " + value);
+                t2 = Double.parseDouble(value);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+                Log.w("file","Failed to read value.", databaseError.toException());
+            }
+        });
+
+        tempo3.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                String value = dataSnapshot.getValue(String.class);
+                Log.d("file","Value is: " + value);
+                t3 = Double.parseDouble(value);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+                Log.w("file","Failed to read value.", databaseError.toException());
+            }
+        });
+
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        myCanvas = (MyCanvas) findViewById(R.id.canvas);
+
+        botaoLigar = (Button)findViewById(R.id.botaoLigar);
+        botaoDesligar = (Button)findViewById(R.id.botaoDesligar);
+        botaoReset = (Button)findViewById(R.id.botaoReset);
+    }
+
+
+    public void botaoLigarOnClick(View v){
+
+        keepGoing = true;
+        StartRunnable runnable = new StartRunnable();
+        new Thread(runnable).start();
+        estado.setValue("ON");
+
+    }
+
+    public void botaoDesligarOnClick (View v){
+        flag_.setValue("false");
+        keepGoing = false;
+        estado.setValue("OFF");
+        estadoBotao = false;
+        myCanvas.setButtonState(estadoBotao);
+    }
+
+    public void botaoResetOnClick (View v){
+        xNew.clear();
+        yNew.clear();
+        keepGoing = false;
+
+        myCanvas.forceLayout();
+
+    }
+
+    class StartRunnable implements Runnable {
+        @Override
+        public void run(){
+            while (keepGoing){
+
+                flag_.addValueEventListener(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                        String value = dataSnapshot.getValue(String.class);
+                        Log.d("file","Value is: " + value);
+                        flag = value;
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError databaseError) {
+                        Log.w("file","Failed to read value.", databaseError.toException());
+
+                    }
+                });
+
+                if ("true".equals(flag)){
+                    runOnUiThread(new Runnable(){
+                        @Override
+                        public void run(){
+                            estadoBotao = true;
+                            myCanvas.setButtonState(estadoBotao);
+
+
+                            TextView xResultado = (TextView)findViewById(R.id.xResultado);
+                            TextView yResultado = (TextView)findViewById(R.id.yResultado);
+
+                            getTempos();
+
+                            Matematica mat = new Matematica();
+                            mat.calculo(t0, t1, t2, t3);
+
+                            double xtiro = mat.getX();
+                            double ytiro = mat.getY();
+
+                            xResultado.setText(String.valueOf(xtiro));
+                            yResultado.setText(String.valueOf(ytiro));
+
+                            float xtirof = (float) xtiro;
+                            float ytirof = (float) ytiro;
+
+                            setResultados(xtirof,ytirof);
+
+                            myCanvas.forceLayout();
+                            flag_.setValue("false");
+                        }
+                    });
+
+                }
+
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+            }
+        }
+    }
+
+}
+
+
+
+
+
+
+Matematica.java
+package com.example.finaltarget1;
+
+import android.util.Log;
+
+import static java.lang.Math.hypot;
+import static java.lang.Math.pow;
+
+public class Matematica extends MainActivity {
+    double xtiro;
+    double ytiro;
+
+    public double getX (){
+        return xtiro;
+    }
+
+    public double getY (){
+        return ytiro;
+    }
+
+    public void setResults(double xResultado, double yResultado){
+        xtiro = xResultado;
+        ytiro = yResultado;
+    }
+
+    public void calculoReal (double x0, double y0, double x1, double y1,
+                             double x2, double y2, double x3, double y3,
+                             double t0, double t1, double t2, double t3){
+
+        double c = 343; //Velocidade do som
+
+        double A[][];
+        A = new double[3][3];
+
+        double Ainv[][];
+        Ainv = new double[3][3];
+
+        double F[][];
+        F = new double[3][1];
+
+        double X[][];
+        X= new double[3][1];
+
+
+        double determinant = 0;
+        int i = 0; int j=0;
+
+        // Definicao Matriz A
+        A[0][0] = 2*x0 - 2*x1;
+        A[0][1] = 2*y0 - 2*y1;
+        A[0][2] = -2*c*(t0-t1);
+
+        A[1][0] = 2*x0 - 2*x2;
+        A[1][1] = 2*y0 - 2*y2;
+        A[1][2] = -2*c*(t0-t2);
+
+        A[2][0] = 2*x0 - 2*x3;
+        A[2][1] = 2*y0 - 2*y3;
+        A[2][2] = -2*c*(t0-t3);
+
+        // Definicao Matriz F
+        F[0][0] = pow(c*(t0-t1),2) + x0*x0 + y0*y0 - x1*x1 - y1*y1;
+        F[1][0] = pow(c*(t0-t2),2) + x0*x0 + y0*y0 - x2*x2 - y2*y2;
+        F[2][0] = pow(c*(t0-t3),2) + x0*x0 + y0*y0 - x3*x3 - y3*y3;
+
+
+        //Cálculo determinante
+        for( i = 0; i < 3; i++)
+        {
+            determinant = determinant + (A[0][i] * (A[1][(i+1)%3] * A[2][(i+2)%3] - A[1][(i+2)%3] * A[2][(i+1)%3]));
+        }
+
+        for(i = 0; i < 3; i++)
+        {
+            for(j = 0; j < 3; j++)
+            {
+                Ainv[i][j] = ((A[(j+1)%3][(i+1)%3] * A[(j+2)%3][(i+2)%3]) - (A[(j+1)%3][(i+2)%3] * A[(j+2)%3][(i+1)%3]))/ determinant;
+            }
+        }
+
+        //multiplicacao de matrizes:
+        for (i=0; i<3; i++)
+        {
+            //i linhas
+            X[i][0] = Ainv[i][0]*F[0][0] + Ainv[i][1]*F[1][0] + Ainv[i][2]*F[2][0];
+        }
+
+        double xtiro = 1000 * X[0][0]; // Transformando de metro para mm
+        double ytiro = 1000 * X[1][0]; // Transformando de metro para mm
+
+        setResults(xtiro, ytiro);
+    }
+
+    public void calculo (double t0, double t1, double t2, double t3){
+
+        double x0 = 0;
+        double y0 = 0;
+
+        double x1 = 0;
+        double y1 = 0;
+
+        double x2 = 0;
+        double y2 = 0;
+
+        double x3 = 0;
+        double y3 = 0;
+
+        t0 = t0 / 1000000;
+        t1 = t1 / 1000000;
+        t2 = t2 / 1000000;
+        t3 = t3 / 1000000;
+
+        //posicao 0: inferior esquerdo(0,0)m
+        //posicao 1: inferior direito (0.250, 0)m
+        //posicao 2: superior esquerdo(0, 0.250)m
+        //posicao 3: superior direito (0.250, 0.250)m
+
+        //Determinação do menor tempo
+        if (t0 < t1 && t0 < t2 && t0 < t3) {
+            t1 -= t0;
+            t2 -= t0;
+            t3 -= t0;
+            t0 = 0;
+
+            //Nao precisa de alteracao, pois ponto zero ja e referencia.
+            x0 = 0;
+            y0 = 0;
+
+            x1 = 0.250;
+            y1 = 0;
+
+            x2 = 0;
+            y2 = 0.250;
+
+            x3 = 0.250;
+            y3 = 0.250;
+        }
+
+        else if (t1 < t0 && t1 < t2 && t1 < t3) {
+            t0 -= t1;
+            t2 -= t1;
+            t3 -= t1;
+            t1 = 0;
+
+            t1 = t0;  // ponto 0 virou ponto 1.
+            t0 = 0;  //ponto 1 virou o ponto de referencia, entao passou a ser zero.
+            x1 = 0;
+            y1 = 0;
+
+            x0 = 0.250;
+            y0 = 0;
+
+            x2 = 0;
+            y2 = 0.250;
+
+            x3 = 0.250;
+            y3 = 0.250;
+        }
+
+        else if (t2 < t0 && t2 < t1 && t2 < t3) {
+            t0 -= t2;
+            t1 -= t2;
+            t3 -= t2;
+            t2 = 0;
+
+            t2 = t0;  // ponto 0 virou ponto 2.
+            t0 = 0;  //ponto 2 virou o ponto de referencia, entao passou a ser zero.
+
+
+            x2 = 0;
+            y2 = 0;
+
+            x1 = 0.250;
+            y1 = 0;
+
+            x0 = 0;
+            y0 = 0.250;
+
+            x3 = 0.250;
+            y3 = 0.250;
+        }
+
+        else {
+            t0 -= t3;
+            t1 -= t3;
+            t2 -= t3;
+            t3 = 0;
+
+            t3 = t0;  // ponto 0 virou ponto 3.
+            t0 = 0;  //ponto 3 virou o ponto de referencia, entao passou a ser zero.
+
+
+            x3 = 0;
+            y3 = 0;
+
+            x1 = 0.250;
+            y1 = 0;
+
+            x2 = 0;
+            y2 = 0.250;
+
+            x0 = 0.250;
+            y0 = 0.250;
+        }
+
+            calculoReal(x0, y0, x1, y1, x2, y2, x3, y3, t0, t1, t2, t3);
+            Log.d("file","Value of x0 is: " + x0);
+            Log.d("file","Value of y0 is: " + y0);
+            Log.d("file","Value of x1 is: " + x1);
+            Log.d("file","Value of y1 is: " + y1);
+            Log.d("file","Value of x2 is: " + x2);
+            Log.d("file","Value of y2 is: " + y2);
+            Log.d("file","Value of x3 is: " + x3);
+            Log.d("file","Value of y3 is: " + y3);
+            Log.d("file","Value of t0 is: " + t0);
+            Log.d("file","Value of t1 is: " + t1);
+            Log.d("file","Value of t2 is: " + t2);
+            Log.d("file","Value of t3 is: " + t3);
+        }
+    }
+}
+
+
+MyCanvas.java
+package com.example.finaltarget1;
+
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.util.AttributeSet;
+import android.view.View;
+
+import java.util.Vector;
+
+public class MyCanvas extends View{
+    Paint myPaint;
+    float cx2, cy2;
+    boolean buttonState2;
+
+    Vector<Float> xNew = new Vector<Float>();
+    Vector<Float> yNew = new Vector<Float>();
+
+    public void setResults(Vector<Float> xResult2, Vector<Float> yResult2){
+        xNew = xResult2;
+        yNew = yResult2;
+    }
+
+    public void setButtonState(boolean state) {
+        buttonState2 = state;
+    }
+
+    public MyCanvas (Context context, AttributeSet attrs){
+        super(context, attrs);
+        myPaint = new Paint();
+    }
+
+    @Override
+    public void onDraw(Canvas myCanvas){
+        super.onDraw(myCanvas);
+        myPaint.setStrokeWidth(3);
+
+
+        if (buttonState2) {
+            for (int i = 0; i < xNew.size(); i++){
+                myPaint.setColor(Color.BLUE);
+                float cx3 = xNew.get(i) * getWidth()/250;
+                float cy3 = getHeight() - yNew.get(i) * getHeight()/250;
+                myCanvas.drawCircle(cx3,cy3,50,myPaint);
+            }
+
+        }
+
+    }
+
+
+
+
+}
+
+
