@@ -1,0 +1,230 @@
+#include <WiFi.h>  //Biblioteca do WiFi do ESP32
+#include <FirebaseESP32.h> //Biblioteca da Firebase do ESP32
+
+//Configurações para entrar na Firebase
+#define FIREBASE_HOST "final-target-1.firebaseio.com"
+#define FIREBASE_AUTH "1D4HspSdmYua51b3OffetOshAHezK8aSFO0nIAD2"
+
+//Configurações para se conectar ao WiFi
+#define WIFI_SSID "SEU ID DE WIFI"
+#define WIFI_PASSWORD "SUA SENHA DE WIFI"
+
+volatile int estado[4] = {0, 0, 0, 0}; //variável volátil por ser alterada dentro de interrupção
+
+const int entradaDigital[4] = {23, 22, 21, 19}; //Entrada dos sensores
+
+volatile double tempo[4] = {0, 0, 0, 0};
+
+String ligado;
+
+FirebaseData firebaseData; //Criação do objeto firebaseData
+
+//Função setup (inicializações do programa)
+void setup()
+{
+  //Define os pinos digitais como entrada
+  for (int i = 0; i < 4; i++)
+  {
+    pinMode(entradaDigital[i], INPUT);
+  }
+
+  //Inicia a comunicação serial com função apenas de debug
+  Serial.begin(115200);
+  Serial.println("======Leitor de tempos======");
+
+  //Conecta o módulo a rede Wi-Fi
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+
+  //Conecta o módulo com a Firebase
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+  Firebase.reconnectWiFi(true);
+
+  //Criação das Tasks nos núcleos especificados  
+  xTaskCreatePinnedToCore(
+                          coreTaskZero,    //Função que implementa a tarefa de verificar o sensor 0
+                          "coreTaskZero", //nome da tarefa
+                          8192, // número de palavras a serem alocadas para uso com a pilha da tarefa
+                          NULL, // parâmetro de entrada para a tarefa (pode ser NULL)
+                          1, //prioridade da tarefa (0 a N)
+                          NULL, // Task Handle referência para a tarefa (pode ser NULL)
+                          0); // Núcleo que executará a tarefa (pode ser o núcleo 0 ou 1)
+                          
+  delay(500); //tempo necessário para a criação completa da Task
+
+  xTaskCreatePinnedToCore(
+                          coreTaskOne, //Função que implementa a tarefa de verificar o sensor 1
+                          "coreTaskOne",
+                          8192,
+                          NULL,
+                          1,
+                          NULL,
+                          1);
+
+  delay(500);
+  
+  xTaskCreatePinnedToCore(
+                          coreTaskTwo, //Função que implementa a tarefa de verificar o sensor 2
+                          "coreTaskTwo",
+                          8192,
+                          NULL,
+                          1,
+                          NULL,
+                          1);
+
+  delay(500);
+
+    
+  xTaskCreatePinnedToCore(
+                          coreTaskThree, //Função que implementa a tarefa de verificar o sensor 3
+                          "coreTaskThree",
+                          8192,
+                          NULL,
+                          1,
+                          NULL,
+                          0);
+
+  delay(500);
+}
+
+
+
+
+void loop() 
+{
+  if (Firebase.getString(firebaseData, "estado")) 
+  {
+    ligado = firebaseData.stringData(); // pega o estado que está escrito na Firebase
+    Serial.println (ligado);    
+
+    if (ligado == "ON")
+    {
+      //Espera todos os estados serem 1
+      while ((estado[0] == 0) or (estado[1] == 0) or (estado[2] == 0) or (estado[3] == 0))
+      {
+        yield();
+      }
+  
+      //checa se a leitura dos tempos foi bem sucedida ou não
+      if (isnan(tempo[0]) or isnan(tempo[1]) or isnan(tempo[2]) or isnan(tempo[3]))
+      {
+        Serial.println("- Falha ao ler o tempo pelo sensor");
+      }
+    
+      else
+      {
+        Serial.println("Enviando os seguintes dados para a Firebase:");
+        for (int w = 0; w < 4; w++)
+        {
+          Serial.println("-> Tempo " + (String)w + ": " + tempo[w] + " micro-segundos");
+        }
+  
+        //Envio de dados para a Firebase
+        Firebase.setString(firebaseData, "t0", (String)tempo[0]);
+        Firebase.setString(firebaseData, "t1", (String)tempo[1]);
+        Firebase.setString(firebaseData, "t2", (String)tempo[2]);
+        Firebase.setString(firebaseData, "t3", (String)tempo[3]);
+        Firebase.setString(firebaseData, "flag", "true");
+      }
+    }
+  }
+
+  //Zera todos os estados antes de retornar para o início do void loop
+  for (int j = 0; j < 4; j++)
+  {
+    estado[j] = 0;
+  }
+}
+
+
+void coreTaskZero (void *pvParameters)
+{
+  attachInterrupt(digitalPinToInterrupt(entradaDigital[0]), sensor0, RISING); //Criação da Interrupção
+  while (true) //Loop infinito
+  {
+    vTaskDelay(1); //Alimenta o WatchDog da Task
+  }
+}
+
+
+void coreTaskOne (void *pvParameters)
+{
+  attachInterrupt(digitalPinToInterrupt(entradaDigital[1]), sensor1, RISING);
+  while (true)
+  {
+    vTaskDelay(1);    
+  }
+}
+
+void coreTaskTwo (void *pvParameters)
+{
+  attachInterrupt(digitalPinToInterrupt(entradaDigital[2]), sensor2, RISING);
+  while (true)
+  {
+    vTaskDelay(1);
+  }
+}
+
+void coreTaskThree (void *pvParameters)
+{
+  attachInterrupt(digitalPinToInterrupt(entradaDigital[3]), sensor3, RISING); 
+  while (true)
+  {
+    vTaskDelay(1);    
+  }
+}
+
+void sensor0() 
+{
+  if (estado[0] == 0) //Verifica se o estado ainda é 0 para não haver repetição
+  {
+    tempo[0] = micros(); //Registra o tempo que se passou até ser atendido o if
+    Serial.println("Tempo do pino " + (String)0 + ": " + (String)tempo[0]);
+  }
+  estado[0] = 1;
+  delayMicroseconds(1); //Alimenta o WatchDog da Interrupção
+}
+
+void sensor1() 
+{
+  if (estado[1] == 0)
+  {
+    tempo[1] = micros();
+    Serial.println("Tempo do pino " + (String)1 + ": " + (String)tempo[1]);
+  }
+  estado[1] = 1;
+  delayMicroseconds(1);
+}
+
+void sensor2() 
+{
+  if (estado[2] == 0)
+  {
+    tempo[2] = micros();
+    Serial.println("Tempo do pino " + (String)2 + ": " + (String)tempo[2]);
+  }
+  estado[2] = 1;
+  delayMicroseconds(1);
+  
+}
+
+void sensor3() 
+{
+  if (estado[3] == 0)
+  {
+    tempo[3] = micros();
+    Serial.println("Tempo do pino " + (String)3 + ": " + (String)tempo[3]);
+  }
+  estado[3] = 1;
+  delayMicroseconds(1);
+  
+}
